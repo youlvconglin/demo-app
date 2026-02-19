@@ -22,7 +22,7 @@ fi
 # ========== 1. 安装基础依赖 ==========
 echo -e "${GREEN}1. 安装基础依赖...${NC}"
 apt update && apt upgrade -y
-apt install -y python3.10 python3.10-venv python3-pip nginx redis-server sqlite3 \
+apt install -y python3 python3-venv python3-pip nginx redis-server sqlite3 \
     git curl htop apache2-utils poppler-utils ghostscript
 
 # ========== 2. 创建目录结构 ==========
@@ -47,11 +47,11 @@ echo "✅ 目录结构创建完成"
 echo -e "${GREEN}3. 创建 Python 虚拟环境...${NC}"
 
 echo "  - 测试环境..."
-python3.10 -m venv /opt/pdfshift/staging/venv
+python3 -m venv /opt/pdfshift/staging/venv
 /opt/pdfshift/staging/venv/bin/pip install --upgrade pip setuptools wheel --quiet
 
 echo "  - 生产环境..."
-python3.10 -m venv /opt/pdfshift/production/venv
+python3 -m venv /opt/pdfshift/production/venv
 /opt/pdfshift/production/venv/bin/pip install --upgrade pip setuptools wheel --quiet
 
 echo "✅ 虚拟环境创建完成"
