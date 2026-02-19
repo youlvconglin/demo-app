@@ -37,35 +37,24 @@ function App() {
     setResult(null)
 
     try {
-      // 1. 获取上传凭证
-      const policyRes = await axios.post(`${API_BASE_URL}/upload/policy`, {
-        filename: file.name,
-        size: file.size
-      })
-
-      setProgress(20)
-
-      // 2. 直传 OSS
+      // 1. 上传文件到服务器
       const formData = new FormData()
-      const timestamp = Date.now()
-      const ossKey = `${policyRes.data.dir}${timestamp}_${file.name}`
-
-      formData.append('key', ossKey)
-      formData.append('policy', policyRes.data.policy)
-      formData.append('OSSAccessKeyId', policyRes.data.access_key_id)
-      formData.append('signature', policyRes.data.signature)
-      formData.append('success_action_status', '200')
       formData.append('file', file)
 
-      await axios.post(policyRes.data.host, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const uploadRes = await axios.post(`${API_BASE_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 50) / progressEvent.total)
+          setProgress(percentCompleted)
+        }
       })
 
+      const fileKey = uploadRes.data.file_key
       setProgress(50)
 
-      // 3. 创建转换任务
+      // 2. 创建转换任务
       const taskRes = await axios.post(`${API_BASE_URL}/tasks`, {
-        oss_key: ossKey,
+        file_key: fileKey,
         task_type: taskType,
         file_name: file.name,
         file_size: file.size,
@@ -74,7 +63,7 @@ function App() {
 
       const taskId = taskRes.data.task_id
 
-      // 4. 轮询任务状态
+      // 3. 轮询任务状态
       const pollTask = async () => {
         const statusRes = await axios.get(`${API_BASE_URL}/tasks/${taskId}`)
         const status = statusRes.data.status
