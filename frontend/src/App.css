@@ -1,0 +1,32 @@
+.app {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 40px 20px;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.container h1 {
+  color: white;
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.footer {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.footer span {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.footer a {
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: underline;
+}
