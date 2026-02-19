@@ -106,29 +106,19 @@
 2. 根据转换质量调整库或参数
 3. 考虑使用 LibreOffice Headless 作为备选方案
 
-#### 2. OSS 实际配置 (重要度: ⭐⭐⭐⭐⭐)
-**当前状态**: 代码已集成，需要配置真实的 OSS
+#### 2. ~~OSS 实际配置~~ (已移除: ✅)
+**当前状态**: ✅ 已改用本地文件系统存储，无需配置 OSS
 
-**待办事项**:
-- [ ] 在阿里云创建 OSS Bucket
-- [ ] 配置 CORS 规则
-- [ ] 配置生命周期规则
-- [ ] 测试文件上传
-- [ ] 测试签名 URL 生成
-- [ ] 测试文件下载
+**优点**:
+- ✅ 零 OSS 成本（节省 ¥20-50/月）
+- ✅ 更快的文件访问速度
+- ✅ 简化的架构，无外部依赖
+- ✅ 所有数据存储在 ECS 本地
 
-**配置步骤**:
-```bash
-# 1. 在 .env 中配置 OSS
-OSS_ACCESS_KEY=LTAI5txxxxxxxxxxxxxx
-OSS_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxx
-OSS_BUCKET=coreshift-staging  # 测试环境
-OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
-
-# 2. OSS 控制台配置
-# - 开启 CORS: 允许 * 或特定域名
-# - 生命周期规则: 2 小时后删除（可选，代码中已有定时清理）
-```
+**注意事项**:
+- 需要确保 ECS 磁盘空间充足
+- 文件存储路径: `/opt/pdfshift/{staging|production}/storage`
+- 定时清理任务会自动删除过期文件
 
 #### 3. 前端功能补充 (重要度: ⭐⭐⭐⭐)
 **当前状态**: 基础 UI 完成，缺少部分交互功能
@@ -275,11 +265,9 @@ sudo bash setup-multi-env.sh
 # 2. 配置环境变量
 nano /opt/pdfshift/staging/.env
 nano /opt/pdfshift/production/.env
+# 注意：已不再需要 OSS 配置，使用本地存储
 
-# 3. 配置 OSS
-# 在阿里云控制台创建 Bucket 并配置
-
-# 4. 推送代码触发部署
+# 3. 推送代码触发部署
 git push origin develop  # 测试环境
 
 # 5. 验证测试环境
@@ -396,3 +384,19 @@ sqlite3 /opt/pdfshift/production/data/production.db \
 **最后更新**: 2026-02-19 11:30
 **下一里程碑**: 部署到测试环境并完成功能测试
 **预计上线时间**: 2026-03-01
+
+---
+
+## 🔄 最新更新 (2026-02-19 14:00)
+
+### ✅ 已完成
+- **移除 OSS 依赖**: 改用本地文件系统存储，降低成本
+  - 后端 API 更新：`/upload/policy` → `/upload`
+  - 数据库字段更新：`oss_key_*` → `file_key_*`
+  - 前端上传逻辑简化：直接上传到后端
+  - 节省成本：¥20-50/月
+
+### 💡 成本优化
+- **月成本从 ¥107 降至 ¥87**（移除 OSS 后）
+- 存储使用 ECS 本地磁盘（已包含在 ECS 费用中）
+- 定时清理任务确保磁盘不会爆满
