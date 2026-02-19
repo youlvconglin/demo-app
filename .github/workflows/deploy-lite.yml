@@ -1,0 +1,297 @@
+name: Deploy PDFShift (Lite - No Docker)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DEPLOY_PATH: /opt/pdfshift
+  VENV_PATH: /opt/pdfshift/venv
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ========== 1. 检出代码 ==========
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ========== 2. 设置 Node.js 环境 ==========
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # ========== 3. 构建前端 ==========
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci --legacy-peer-deps
+          npm run build
+
+          echo "✅ Frontend build completed"
+          echo "Build size: $(du -sh dist | cut -f1)"
+          ls -lh dist/
+
+      # ========== 4. 打包部署文件 ==========
+      - name: Package deployment files
+        run: |
+          mkdir -p deploy_package
+
+          # 复制后端代码
+          cp -r backend deploy_package/
+
+          # 复制前端构建产物
+          mkdir -p deploy_package/frontend
+          cp -r frontend/dist deploy_package/frontend/
+
+          # 打包
+          tar -czf deploy.tar.gz deploy_package/
+
+          echo "✅ Package created"
+          echo "Package size: $(du -h deploy.tar.gz | cut -f1)"
+
+      # ========== 5. 上传到 ECS ==========
+      - name: Upload to ECS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USERNAME }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          port: 22
+          source: "deploy.tar.gz"
+          target: "/tmp"
+
+      # ========== 6. 部署到服务器 ==========
+      - name: Deploy and restart services
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USERNAME }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            set -e
+
+            echo "========================================="
+            echo "  开始部署 PDFShift"
+            echo "  时间: $(date)"
+            echo "========================================="
+
+            # ========== 解压文件 ==========
+            echo ""
+            echo "📦 解压部署包..."
+            cd /tmp
+            tar -xzf deploy.tar.gz
+            echo "✅ 解压完成"
+
+            # ========== 备份数据库 ==========
+            echo ""
+            echo "💾 备份数据库..."
+            if [ -f "${{ env.DEPLOY_PATH }}/data/pdfshift.db" ]; then
+              BACKUP_FILE="${{ env.DEPLOY_PATH }}/backups/pdfshift.db.$(date +%Y%m%d_%H%M%S)"
+              sudo -u www-data cp ${{ env.DEPLOY_PATH }}/data/pdfshift.db $BACKUP_FILE
+              echo "✅ 数据库已备份: $(basename $BACKUP_FILE)"
+              echo "   大小: $(du -h $BACKUP_FILE | cut -f1)"
+            else
+              echo "⚠️  数据库文件不存在，跳过备份"
+            fi
+
+            # ========== 停止服务 ==========
+            echo ""
+            echo "🛑 停止服务..."
+            sudo systemctl stop pdfshift-api || true
+            sudo systemctl stop pdfshift-worker || true
+            sudo systemctl stop pdfshift-beat || true
+            sleep 2
+            echo "✅ 服务已停止"
+
+            # ========== 更新后端代码 ==========
+            echo ""
+            echo "📝 更新后端代码..."
+            sudo rm -rf ${{ env.DEPLOY_PATH }}/backend.old
+            if [ -d "${{ env.DEPLOY_PATH }}/backend" ]; then
+              sudo mv ${{ env.DEPLOY_PATH }}/backend ${{ env.DEPLOY_PATH }}/backend.old
+            fi
+            sudo cp -r /tmp/deploy_package/backend ${{ env.DEPLOY_PATH }}/
+            sudo chown -R www-data:www-data ${{ env.DEPLOY_PATH }}/backend
+            echo "✅ 后端代码已更新"
+
+            # ========== 更新前端代码 ==========
+            echo ""
+            echo "🎨 更新前端代码..."
+            sudo rm -rf ${{ env.DEPLOY_PATH }}/frontend/dist.old
+            if [ -d "${{ env.DEPLOY_PATH }}/frontend/dist" ]; then
+              sudo mv ${{ env.DEPLOY_PATH }}/frontend/dist ${{ env.DEPLOY_PATH }}/frontend/dist.old
+            fi
+            sudo mkdir -p ${{ env.DEPLOY_PATH }}/frontend
+            sudo cp -r /tmp/deploy_package/frontend/dist ${{ env.DEPLOY_PATH }}/frontend/
+            sudo chown -R www-data:www-data ${{ env.DEPLOY_PATH }}/frontend
+            echo "✅ 前端代码已更新"
+
+            # ========== 更新 Python 依赖 ==========
+            echo ""
+            echo "📚 更新 Python 依赖..."
+            cd ${{ env.DEPLOY_PATH }}/backend
+
+            if [ -f requirements.txt ]; then
+              sudo -u www-data ${{ env.VENV_PATH }}/bin/pip install -r requirements.txt --upgrade --quiet
+              echo "✅ Python 依赖已更新"
+
+              # 显示关键包版本
+              echo ""
+              echo "主要依赖版本:"
+              sudo -u www-data ${{ env.VENV_PATH }}/bin/pip list | grep -E "fastapi|celery|redis|sqlalchemy" || true
+            else
+              echo "⚠️  未找到 requirements.txt"
+            fi
+
+            # ========== 数据库迁移（如需要）==========
+            echo ""
+            echo "🗄️  检查数据库迁移..."
+            if [ -f ${{ env.DEPLOY_PATH }}/backend/migrate.py ]; then
+              sudo -u www-data ${{ env.VENV_PATH }}/bin/python migrate.py
+              echo "✅ 数据库迁移完成"
+            else
+              echo "⚠️  无需数据库迁移"
+            fi
+
+            # ========== 启动服务 ==========
+            echo ""
+            echo "🚀 启动服务..."
+            sudo systemctl start pdfshift-api
+            sudo systemctl start pdfshift-worker
+            sudo systemctl start pdfshift-beat
+
+            echo "⏳ 等待服务启动..."
+            sleep 5
+
+            # ========== 检查服务状态 ==========
+            echo ""
+            echo "📊 检查服务状态..."
+
+            API_STATUS=$(sudo systemctl is-active pdfshift-api)
+            WORKER_STATUS=$(sudo systemctl is-active pdfshift-worker)
+            BEAT_STATUS=$(sudo systemctl is-active pdfshift-beat)
+
+            echo "  - API:    $API_STATUS"
+            echo "  - Worker: $WORKER_STATUS"
+            echo "  - Beat:   $BEAT_STATUS"
+
+            if [ "$API_STATUS" != "active" ]; then
+              echo ""
+              echo "❌ API 服务启动失败，查看日志:"
+              sudo journalctl -u pdfshift-api -n 30 --no-pager
+              exit 1
+            fi
+
+            if [ "$WORKER_STATUS" != "active" ]; then
+              echo "⚠️  Worker 服务启动异常"
+              sudo journalctl -u pdfshift-worker -n 10 --no-pager
+            fi
+
+            # ========== 健康检查 ==========
+            echo ""
+            echo "🏥 健康检查..."
+
+            MAX_RETRIES=5
+            RETRY_COUNT=0
+
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              if curl -sf http://localhost/health > /dev/null 2>&1; then
+                echo "✅ 健康检查通过"
+                break
+              else
+                RETRY_COUNT=$((RETRY_COUNT+1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "⏳ 重试中... ($RETRY_COUNT/$MAX_RETRIES)"
+                  sleep 3
+                else
+                  echo ""
+                  echo "❌ 健康检查失败"
+                  echo ""
+                  echo "API 日志:"
+                  sudo journalctl -u pdfshift-api -n 50 --no-pager
+                  echo ""
+                  echo "Nginx 错误日志:"
+                  sudo tail -30 /var/log/nginx/pdfshift_error.log
+                  exit 1
+                fi
+              fi
+            done
+
+            # ========== 测试 API 端点 ==========
+            echo ""
+            echo "🧪 测试 API 端点..."
+
+            # 测试根路径
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/)
+            if [ "$HTTP_CODE" == "200" ]; then
+              echo "✅ 前端页面: OK (HTTP $HTTP_CODE)"
+            else
+              echo "⚠️  前端页面: HTTP $HTTP_CODE"
+            fi
+
+            # 测试 API
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/v1/health)
+            if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "404" ]; then
+              echo "✅ API 端点: OK (HTTP $HTTP_CODE)"
+            else
+              echo "⚠️  API 端点: HTTP $HTTP_CODE"
+            fi
+
+            # ========== 系统状态 ==========
+            echo ""
+            echo "💻 系统资源使用:"
+            echo "  - CPU: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}')%"
+            echo "  - 内存: $(free -h | awk '/^Mem:/ {print $3 "/" $2}')"
+            echo "  - 磁盘: $(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')"
+
+            # ========== 清理 ==========
+            echo ""
+            echo "🧹 清理临时文件..."
+            rm -rf /tmp/deploy.tar.gz /tmp/deploy_package
+
+            # 清理旧备份（保留 3 个）
+            cd ${{ env.DEPLOY_PATH }}/backups
+            ls -t pdfshift.db.* 2>/dev/null | tail -n +4 | xargs -r rm
+
+            # 清理旧代码备份
+            sudo rm -rf ${{ env.DEPLOY_PATH }}/backend.old
+            sudo rm -rf ${{ env.DEPLOY_PATH }}/frontend/dist.old
+
+            echo "✅ 清理完成"
+
+            # ========== 完成 ==========
+            echo ""
+            echo "========================================="
+            echo "  ✅ 部署成功！"
+            echo "  时间: $(date)"
+            echo "========================================="
+            echo ""
+            echo "🌐 访问地址: http://${{ secrets.ECS_HOST }}"
+            echo "🔐 管理后台: http://${{ secrets.ECS_HOST }}/admin"
+            echo ""
+            echo "📊 查看日志:"
+            echo "  sudo journalctl -u pdfshift-api -f"
+            echo "  tail -f ${{ env.DEPLOY_PATH }}/logs/api.log"
+            echo ""
+
+      # ========== 7. 通知部署结果 ==========
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "Deployment Summary"
+          echo "========================================="
+          echo "Status: ${{ job.status }}"
+          echo "Time: $(date)"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "========================================="
