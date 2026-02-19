@@ -276,7 +276,14 @@ jobs:
             cd $DEPLOY_PATH/backend
 
             if [ -f requirements.txt ]; then
-              sudo -u www-data $DEPLOY_PATH/venv/bin/pip install -r requirements.txt --upgrade --quiet
+              # 使用阿里云 PyPI 镜像源，增加超时时间和重试次数
+              sudo -u www-data $DEPLOY_PATH/venv/bin/pip install \
+                -r requirements.txt \
+                --upgrade \
+                --index-url https://mirrors.aliyun.com/pypi/simple/ \
+                --trusted-host mirrors.aliyun.com \
+                --timeout 300 \
+                --retries 5
               echo "✅ Python 依赖已更新"
             else
               echo "⚠️  未找到 requirements.txt"
