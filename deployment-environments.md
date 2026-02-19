@@ -600,13 +600,19 @@ curl http://pdfshift.com/health
 开发分支 (feature/xxx)
     ↓ PR 合并
 develop 分支
-    ↓ 自动触发
+    ↓ 自动触发 (push)
 测试环境部署 (test.pdfshift.com)
     ↓ 测试通过
 main 分支
-    ↓ 自动触发
+    ↓ 需要手动触发 (workflow_dispatch)
+    ↓ 输入确认码: DEPLOY
 生产环境部署 (pdfshift.com)
 ```
+
+**安全策略**：
+- ✅ 测试环境：develop 分支 push 时**自动部署**
+- ⚠️ 生产环境：需要在 GitHub Actions 页面**手动触发**
+- 🔒 生产环境部署需要输入确认码 `DEPLOY` 防止误操作
 
 ### 5.2 首次部署
 
@@ -618,13 +624,52 @@ sudo bash setup-multi-env.sh
 test.pdfshift.com → ECS IP
 pdfshift.com      → ECS IP
 
-# 3. 推送代码到 develop 分支触发测试环境部署
+# 3. 推送代码到 develop 分支 → 自动部署测试环境
 git push origin develop
 
-# 4. 测试通过后，合并到 main 分支触发生产部署
+# 4. 测试通过后，合并到 main 分支（不会自动部署）
 git checkout main
 git merge develop
 git push origin main
+
+# 5. 手动触发生产环境部署（见下节）
+```
+
+### 5.3 手动触发生产环境部署
+
+**步骤**：
+
+1. 访问 GitHub Actions 页面：
+   ```
+   https://github.com/你的用户名/demo-app/actions/workflows/deploy-multi-env.yml
+   ```
+
+2. 点击右侧 **"Run workflow"** 按钮
+
+3. 在弹出的表单中：
+   - **Use workflow from**: 选择 `main` 分支
+   - **选择部署环境**: 选择 `production`
+   - **生产环境部署确认**: 输入 `DEPLOY` (必须大写)
+
+4. 点击绿色的 **"Run workflow"** 按钮
+
+5. 等待部署完成（约 2-3 分钟）
+
+6. 查看部署日志确认成功
+
+**安全机制**：
+- ✅ 必须手动点击触发
+- ✅ 必须输入确认码 `DEPLOY`
+- ✅ 部署失败自动回滚（生产环境）
+- ✅ 记录完整的操作日志（操作人、时间、版本）
+
+**快速命令（使用 gh CLI）**：
+```bash
+# 触发生产环境部署
+gh workflow run deploy-multi-env.yml \
+  --ref main \
+  -f environment=production \
+  -f confirm_production=DEPLOY
 ```
 
 ---

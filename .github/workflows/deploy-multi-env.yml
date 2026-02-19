@@ -1,0 +1,457 @@
+name: Deploy PDFShift (Multi Environment)
+
+on:
+  push:
+    branches:
+      - develop      # 仅测试环境自动部署
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '选择部署环境'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      confirm_production:
+        description: '生产环境部署确认 (输入 DEPLOY 确认)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  # ========== 预检查任务 ==========
+  pre-check:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.determine.outputs.environment }}
+      deploy_path: ${{ steps.determine.outputs.deploy_path }}
+      api_port: ${{ steps.determine.outputs.api_port }}
+      service_prefix: ${{ steps.determine.outputs.service_prefix }}
+      should_deploy: ${{ steps.validate.outputs.should_deploy }}
+
+    steps:
+      - name: Determine environment
+        id: determine
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+            echo "🎯 手动触发部署: $ENV"
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            ENV="staging"
+            echo "🚀 自动部署到测试环境"
+          else
+            echo "❌ 未知分支或触发方式"
+            exit 1
+          fi
+
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+
+          # 设置环境特定配置
+          if [ "$ENV" == "production" ]; then
+            echo "deploy_path=/opt/pdfshift/production" >> $GITHUB_OUTPUT
+            echo "api_port=8000" >> $GITHUB_OUTPUT
+            echo "service_prefix=pdfshift-production" >> $GITHUB_OUTPUT
+          else
+            echo "deploy_path=/opt/pdfshift/staging" >> $GITHUB_OUTPUT
+            echo "api_port=8001" >> $GITHUB_OUTPUT
+            echo "service_prefix=pdfshift-staging" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate production deployment
+        id: validate
+        run: |
+          ENV="${{ steps.determine.outputs.environment }}"
+
+          if [ "$ENV" == "production" ]; then
+            CONFIRM="${{ github.event.inputs.confirm_production }}"
+
+            echo "========================================="
+            echo "  ⚠️  生产环境部署确认"
+            echo "========================================="
+            echo "环境: $ENV"
+            echo "分支: ${{ github.ref_name }}"
+            echo "提交: ${{ github.sha }}"
+            echo "操作人: ${{ github.actor }}"
+            echo "确认输入: $CONFIRM"
+            echo "========================================="
+
+            if [ "$CONFIRM" != "DEPLOY" ]; then
+              echo ""
+              echo "❌ 生产环境部署需要确认！"
+              echo "   请在 workflow 输入框中输入: DEPLOY"
+              echo ""
+              exit 1
+            fi
+
+            echo "✅ 生产环境部署已确认"
+          fi
+
+          echo "should_deploy=true" >> $GITHUB_OUTPUT
+
+  # ========== 构建和部署任务 ==========
+  deploy:
+    needs: pre-check
+    runs-on: ubuntu-latest
+    if: needs.pre-check.outputs.should_deploy == 'true'
+
+    environment:
+      name: ${{ needs.pre-check.outputs.environment }}
+      url: ${{ needs.pre-check.outputs.environment == 'production' && 'https://pdfshift.com' || 'https://test.pdfshift.com' }}
+
+    steps:
+      # ========== 1. 检出代码 ==========
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ========== 2. 显示部署信息 ==========
+      - name: Display deployment info
+        run: |
+          echo "========================================="
+          echo "  部署信息"
+          echo "========================================="
+          echo "环境:        ${{ needs.pre-check.outputs.environment }}"
+          echo "分支:        ${{ github.ref_name }}"
+          echo "提交:        ${{ github.sha }}"
+          echo "提交者:      ${{ github.actor }}"
+          echo "触发方式:    ${{ github.event_name }}"
+          echo "部署路径:    ${{ needs.pre-check.outputs.deploy_path }}"
+          echo "API 端口:    ${{ needs.pre-check.outputs.api_port }}"
+          echo "========================================="
+
+      # ========== 3. 设置 Node.js ==========
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # ========== 4. 构建前端 ==========
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci --legacy-peer-deps
+
+          # 根据环境设置构建变量
+          if [ "${{ needs.pre-check.outputs.environment }}" == "production" ]; then
+            export VITE_API_BASE_URL=https://pdfshift.com/api
+            export VITE_APP_ENV=production
+          else
+            export VITE_API_BASE_URL=https://test.pdfshift.com/api
+            export VITE_APP_ENV=staging
+          fi
+
+          npm run build
+
+          echo ""
+          echo "✅ Frontend build completed"
+          echo "Environment: ${{ needs.pre-check.outputs.environment }}"
+          echo "Build size: $(du -sh dist | cut -f1)"
+
+      # ========== 5. 打包部署文件 ==========
+      - name: Package deployment files
+        run: |
+          mkdir -p deploy_package
+
+          # 复制后端代码
+          cp -r backend deploy_package/
+
+          # 复制前端构建产物
+          mkdir -p deploy_package/frontend
+          cp -r frontend/dist deploy_package/frontend/
+
+          # 添加环境标识文件
+          echo "${{ needs.pre-check.outputs.environment }}" > deploy_package/ENVIRONMENT
+          echo "${{ github.sha }}" > deploy_package/VERSION
+
+          # 打包
+          tar -czf deploy.tar.gz deploy_package/
+
+          echo "✅ Package created"
+          echo "Package size: $(du -h deploy.tar.gz | cut -f1)"
+
+      # ========== 6. 上传到 ECS ==========
+      - name: Upload to ECS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USERNAME }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          port: 22
+          source: "deploy.tar.gz"
+          target: "/tmp"
+          timeout: 60s
+
+      # ========== 7. 部署到服务器 ==========
+      - name: Deploy to ${{ needs.pre-check.outputs.environment }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USERNAME }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            set -e
+
+            ENV="${{ needs.pre-check.outputs.environment }}"
+            DEPLOY_PATH="${{ needs.pre-check.outputs.deploy_path }}"
+            SERVICE_PREFIX="${{ needs.pre-check.outputs.service_prefix }}"
+            API_PORT="${{ needs.pre-check.outputs.api_port }}"
+
+            echo "========================================="
+            echo "  开始部署: $ENV"
+            echo "  时间: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "========================================="
+
+            # 解压部署包
+            echo ""
+            echo "📦 解压部署包..."
+            cd /tmp
+            tar -xzf deploy.tar.gz
+
+            # 验证环境
+            PACKAGE_ENV=$(cat deploy_package/ENVIRONMENT)
+            if [ "$PACKAGE_ENV" != "$ENV" ]; then
+              echo "❌ 环境不匹配: 包=$PACKAGE_ENV, 目标=$ENV"
+              exit 1
+            fi
+            echo "✅ 环境验证通过: $ENV"
+
+            # 备份数据库
+            echo ""
+            echo "💾 备份数据库..."
+            DB_FILE="$DEPLOY_PATH/data/${ENV}.db"
+            if [ -f "$DB_FILE" ]; then
+              BACKUP_FILE="$DEPLOY_PATH/backups/${ENV}.db.$(date +%Y%m%d_%H%M%S)"
+              sudo -u www-data cp "$DB_FILE" "$BACKUP_FILE"
+              echo "✅ 数据库已备份: $(basename $BACKUP_FILE)"
+              echo "   大小: $(du -h $BACKUP_FILE | cut -f1)"
+            else
+              echo "⚠️  数据库文件不存在，跳过备份"
+            fi
+
+            # 停止服务
+            echo ""
+            echo "🛑 停止 $ENV 服务..."
+            sudo systemctl stop ${SERVICE_PREFIX}-api || true
+            sudo systemctl stop ${SERVICE_PREFIX}-worker || true
+            sudo systemctl stop ${SERVICE_PREFIX}-beat || true
+            sleep 2
+            echo "✅ 服务已停止"
+
+            # 备份旧代码
+            echo ""
+            echo "📂 备份旧代码..."
+            if [ -d "$DEPLOY_PATH/backend" ]; then
+              sudo rm -rf $DEPLOY_PATH/backend.old
+              sudo mv $DEPLOY_PATH/backend $DEPLOY_PATH/backend.old
+            fi
+            if [ -d "$DEPLOY_PATH/frontend/dist" ]; then
+              sudo rm -rf $DEPLOY_PATH/frontend/dist.old
+              sudo mv $DEPLOY_PATH/frontend/dist $DEPLOY_PATH/frontend/dist.old
+            fi
+
+            # 更新后端代码
+            echo ""
+            echo "📝 更新后端代码..."
+            sudo cp -r /tmp/deploy_package/backend $DEPLOY_PATH/
+            sudo chown -R www-data:www-data $DEPLOY_PATH/backend
+            echo "✅ 后端代码已更新"
+
+            # 更新前端代码
+            echo ""
+            echo "🎨 更新前端代码..."
+            sudo mkdir -p $DEPLOY_PATH/frontend
+            sudo cp -r /tmp/deploy_package/frontend/dist $DEPLOY_PATH/frontend/
+            sudo chown -R www-data:www-data $DEPLOY_PATH/frontend
+            echo "✅ 前端代码已更新"
+
+            # 更新 Python 依赖
+            echo ""
+            echo "📚 更新 Python 依赖..."
+            cd $DEPLOY_PATH/backend
+
+            if [ -f requirements.txt ]; then
+              sudo -u www-data $DEPLOY_PATH/venv/bin/pip install -r requirements.txt --upgrade --quiet
+              echo "✅ Python 依赖已更新"
+            else
+              echo "⚠️  未找到 requirements.txt"
+            fi
+
+            # 数据库迁移
+            echo ""
+            echo "🗄️  检查数据库迁移..."
+            if [ -f migrate.py ]; then
+              sudo -u www-data $DEPLOY_PATH/venv/bin/python migrate.py
+              echo "✅ 数据库迁移完成"
+            else
+              echo "ℹ️  无需数据库迁移"
+            fi
+
+            # 启动服务
+            echo ""
+            echo "🚀 启动 $ENV 服务..."
+            sudo systemctl start ${SERVICE_PREFIX}-api
+            sudo systemctl start ${SERVICE_PREFIX}-worker
+            sudo systemctl start ${SERVICE_PREFIX}-beat
+
+            echo "⏳ 等待服务启动..."
+            sleep 5
+
+            # 检查服务状态
+            echo ""
+            echo "📊 检查服务状态..."
+
+            API_STATUS=$(sudo systemctl is-active ${SERVICE_PREFIX}-api)
+            WORKER_STATUS=$(sudo systemctl is-active ${SERVICE_PREFIX}-worker)
+            BEAT_STATUS=$(sudo systemctl is-active ${SERVICE_PREFIX}-beat || echo "inactive")
+
+            echo "  - API:    $API_STATUS"
+            echo "  - Worker: $WORKER_STATUS"
+            echo "  - Beat:   $BEAT_STATUS"
+
+            if [ "$API_STATUS" != "active" ]; then
+              echo ""
+              echo "❌ API 服务启动失败"
+              sudo journalctl -u ${SERVICE_PREFIX}-api -n 50 --no-pager
+              exit 1
+            fi
+
+            if [ "$WORKER_STATUS" != "active" ]; then
+              echo "⚠️  Worker 服务异常"
+              sudo journalctl -u ${SERVICE_PREFIX}-worker -n 20 --no-pager
+            fi
+
+            # 健康检查
+            echo ""
+            echo "🏥 健康检查..."
+
+            MAX_RETRIES=10
+            RETRY_COUNT=0
+
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              if curl -sf http://localhost:${API_PORT}/health > /dev/null 2>&1; then
+                echo "✅ 健康检查通过"
+                break
+              else
+                RETRY_COUNT=$((RETRY_COUNT+1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "⏳ 重试中... ($RETRY_COUNT/$MAX_RETRIES)"
+                  sleep 3
+                else
+                  echo ""
+                  echo "❌ 健康检查失败"
+                  sudo journalctl -u ${SERVICE_PREFIX}-api -n 50 --no-pager
+                  exit 1
+                fi
+              fi
+            done
+
+            # 测试关键端点
+            echo ""
+            echo "🧪 测试 API 端点..."
+
+            # 测试前端
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${API_PORT}/ || echo "000")
+            echo "  - 前端页面: HTTP $HTTP_CODE"
+
+            # 测试 API
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${API_PORT}/api/v1/health || echo "000")
+            echo "  - API 健康: HTTP $HTTP_CODE"
+
+            # 系统资源
+            echo ""
+            echo "💻 系统资源:"
+            echo "  - CPU: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}')%"
+            echo "  - 内存: $(free -h | awk '/^Mem:/ {print $3 "/" $2}')"
+            echo "  - 磁盘: $(df -h $DEPLOY_PATH | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')"
+
+            # 服务端口监听
+            echo ""
+            echo "🔌 服务端口:"
+            ss -tlnp | grep ":${API_PORT}" || echo "  - 警告: 端口 ${API_PORT} 未监听"
+
+            # 清理
+            echo ""
+            echo "🧹 清理临时文件..."
+            rm -rf /tmp/deploy.tar.gz /tmp/deploy_package
+
+            # 清理旧备份
+            cd $DEPLOY_PATH/backups
+            ls -t ${ENV}.db.* 2>/dev/null | tail -n +6 | xargs -r rm -f
+            echo "✅ 清理完成（保留最近 5 个备份）"
+
+            # 完成
+            echo ""
+            echo "========================================="
+            echo "  ✅ $ENV 环境部署成功！"
+            echo "  时间: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "  版本: ${{ github.sha }}"
+            echo "========================================="
+
+      # ========== 8. 部署摘要 ==========
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo ""
+          echo "========================================="
+          echo "  部署摘要"
+          echo "========================================="
+          echo "环境:     ${{ needs.pre-check.outputs.environment }}"
+          echo "状态:     ${{ job.status }}"
+          echo "分支:     ${{ github.ref_name }}"
+          echo "提交:     ${{ github.sha }}"
+          echo "操作人:   ${{ github.actor }}"
+          echo "时间:     $(date '+%Y-%m-%d %H:%M:%S')"
+
+          if [ "${{ needs.pre-check.outputs.environment }}" == "production" ]; then
+            echo "访问地址: https://pdfshift.com"
+            echo "管理后台: https://pdfshift.com/admin"
+          else
+            echo "访问地址: https://test.pdfshift.com"
+            echo "管理后台: https://test.pdfshift.com/admin"
+          fi
+          echo "========================================="
+
+      # ========== 9. 失败时回滚（可选）==========
+      - name: Rollback on failure
+        if: failure() && needs.pre-check.outputs.environment == 'production'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ECS_HOST }}
+          username: ${{ secrets.ECS_USERNAME }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          port: 22
+          script: |
+            echo "========================================="
+            echo "  ⚠️  生产环境部署失败，开始回滚"
+            echo "========================================="
+
+            DEPLOY_PATH="/opt/pdfshift/production"
+            SERVICE_PREFIX="pdfshift-production"
+
+            # 停止服务
+            sudo systemctl stop ${SERVICE_PREFIX}-api || true
+            sudo systemctl stop ${SERVICE_PREFIX}-worker || true
+
+            # 恢复旧代码
+            if [ -d "$DEPLOY_PATH/backend.old" ]; then
+              sudo rm -rf $DEPLOY_PATH/backend
+              sudo mv $DEPLOY_PATH/backend.old $DEPLOY_PATH/backend
+              echo "✅ 后端代码已回滚"
+            fi
+
+            if [ -d "$DEPLOY_PATH/frontend/dist.old" ]; then
+              sudo rm -rf $DEPLOY_PATH/frontend/dist
+              sudo mv $DEPLOY_PATH/frontend/dist.old $DEPLOY_PATH/frontend/dist
+              echo "✅ 前端代码已回滚"
+            fi
+
+            # 重启服务
+            sudo systemctl start ${SERVICE_PREFIX}-api
+            sudo systemctl start ${SERVICE_PREFIX}-worker
+
+            echo "✅ 回滚完成"
