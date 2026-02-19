@@ -171,5 +171,5 @@ PRAGMA busy_timeout=30000;  -- 30 秒超时
 
 -- 完成
 SELECT 'PDFShift database initialized successfully!' as message;
-SELECT 'Database file: ' || database_file FROM pragma_database_list WHERE name='main';
+SELECT 'Database file: ' || file FROM pragma_database_list WHERE name='main';
 SELECT 'Schema version: ' || MAX(version) FROM schema_version;
