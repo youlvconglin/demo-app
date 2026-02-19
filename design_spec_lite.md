@@ -402,7 +402,7 @@ sudo systemctl status pdfshift-beat
 ```nginx
 server {
     listen 80;
-    server_name pdfshift.com www.pdfshift.com;  # 替换为你的域名
+    server_name coreshift.cn www.coreshift.cn;  # 替换为你的域名
 
     client_max_body_size 500M;
     client_body_timeout 300s;
@@ -645,7 +645,7 @@ REDIS_URL=redis://localhost:6379/0
 # OSS 配置
 OSS_ACCESS_KEY=your_access_key_here
 OSS_SECRET_KEY=your_secret_key_here
-OSS_BUCKET=pdfshift-storage
+OSS_BUCKET=coreshift-storage
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 # JWT

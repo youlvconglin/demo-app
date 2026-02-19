@@ -233,7 +233,7 @@ http {
     # 主站配置
     server {
         listen 80;
-        server_name pdfshift.com www.pdfshift.com;  # 替换为你的域名
+        server_name coreshift.cn www.coreshift.cn;  # 替换为你的域名
 
         # 强制跳转 HTTPS (生产环境启用)
         # return 301 https://$server_name$request_uri;
@@ -287,7 +287,7 @@ http {
     # HTTPS 配置 (可选，配置 SSL 后启用)
     # server {
     #     listen 443 ssl http2;
-    #     server_name pdfshift.com www.pdfshift.com;
+    #     server_name coreshift.cn www.coreshift.cn;
     #
     #     ssl_certificate /etc/nginx/ssl/fullchain.pem;
     #     ssl_certificate_key /etc/nginx/ssl/privkey.pem;
@@ -453,7 +453,7 @@ DB_PASSWORD=your_secure_password_here
 # OSS 配置
 OSS_ACCESS_KEY=LTAI5txxxxxxxxxxxxxx
 OSS_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxx
-OSS_BUCKET=pdfshift-storage
+OSS_BUCKET=coreshift-storage
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 # JWT 配置

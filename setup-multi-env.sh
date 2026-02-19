@@ -68,7 +68,7 @@ REDIS_URL=redis://localhost:6379/1
 
 OSS_ACCESS_KEY=your_access_key
 OSS_SECRET_KEY=your_secret_key
-OSS_BUCKET=pdfshift-staging
+OSS_BUCKET=coreshift-staging
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 JWT_SECRET=staging_test_secret_key_change_me
@@ -90,7 +90,7 @@ REDIS_URL=redis://localhost:6379/0
 
 OSS_ACCESS_KEY=your_access_key
 OSS_SECRET_KEY=your_secret_key
-OSS_BUCKET=pdfshift-production
+OSS_BUCKET=coreshift-production
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 JWT_SECRET=production_super_strong_secret_min_32_chars
@@ -143,7 +143,7 @@ cat > /etc/nginx/sites-available/pdfshift-multi << 'NGINX_EOF'
 # 测试环境
 server {
     listen 80;
-    server_name test.pdfshift.com;
+    server_name test.coreshift.cn;
 
     client_max_body_size 500M;
 
@@ -181,7 +181,7 @@ server {
 # 生产环境
 server {
     listen 80;
-    server_name pdfshift.com www.pdfshift.com;
+    server_name coreshift.cn www.coreshift.cn;
 
     client_max_body_size 500M;
 
@@ -348,8 +348,8 @@ echo -e "${GREEN}  多环境初始化完成！${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "${YELLOW}📋 环境配置:${NC}"
-echo "  测试环境: test.pdfshift.com  (端口 8001)"
-echo "  生产环境: pdfshift.com       (端口 8000)"
+echo "  测试环境: test.coreshift.cn  (端口 8001)"
+echo "  生产环境: coreshift.cn       (端口 8000)"
 echo ""
 echo -e "${YELLOW}📋 下一步操作:${NC}"
 echo "1. 编辑配置文件:"
@@ -357,8 +357,8 @@ echo "   nano /opt/pdfshift/staging/.env"
 echo "   nano /opt/pdfshift/production/.env"
 echo ""
 echo "2. 配置域名解析:"
-echo "   test.pdfshift.com → $(curl -s ifconfig.me)"
-echo "   pdfshift.com      → $(curl -s ifconfig.me)"
+echo "   test.coreshift.cn → $(curl -s ifconfig.me)"
+echo "   coreshift.cn      → $(curl -s ifconfig.me)"
 echo ""
 echo "3. 部署代码（使用 GitHub Actions）:"
 echo "   git push origin develop   # 部署到测试环境"

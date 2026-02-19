@@ -97,7 +97,7 @@
 
 您的文件 "report.pdf" 已成功转换为 Word 文档。
 
-下载链接：https://pdfshift.com/download/abc123
+下载链接：https://coreshift.cn/download/abc123
 （有效期：24小时）
 
 如有问题，请回复此邮件或访问帮助中心。
@@ -143,8 +143,8 @@ PDFShift 团队
 <!-- Open Graph (社交分享) -->
 <meta property="og:title" content="PDFShift - 在线 PDF 转换工具">
 <meta property="og:description" content="免费转换 PDF 文件，支持 Word、Excel、PPT 格式。">
-<meta property="og:image" content="https://pdfshift.com/og-image.png">
-<meta property="og:url" content="https://pdfshift.com">
+<meta property="og:image" content="https://coreshift.cn/og-image.png">
+<meta property="og:url" content="https://coreshift.cn">
 ```
 
 **结构化数据** (JSON-LD):
@@ -154,7 +154,7 @@ PDFShift 团队
   "@type": "WebApplication",
   "name": "PDFShift",
   "description": "在线 PDF 转换工具",
-  "url": "https://pdfshift.com",
+  "url": "https://coreshift.cn",
   "applicationCategory": "UtilityApplication",
   "operatingSystem": "Any",
   "offers": {

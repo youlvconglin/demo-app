@@ -98,7 +98,7 @@ jobs:
 
     environment:
       name: ${{ needs.pre-check.outputs.environment }}
-      url: ${{ needs.pre-check.outputs.environment == 'production' && 'https://pdfshift.com' || 'https://test.pdfshift.com' }}
+      url: ${{ needs.pre-check.outputs.environment == 'production' && 'https://coreshift.cn' || 'https://test.coreshift.cn' }}
 
     steps:
       # ========== 1. 检出代码 ==========
@@ -136,10 +136,10 @@ jobs:
 
           # 根据环境设置构建变量
           if [ "${{ needs.pre-check.outputs.environment }}" == "production" ]; then
-            export VITE_API_BASE_URL=https://pdfshift.com/api
+            export VITE_API_BASE_URL=https://coreshift.cn/api
             export VITE_APP_ENV=production
           else
-            export VITE_API_BASE_URL=https://test.pdfshift.com/api
+            export VITE_API_BASE_URL=https://test.coreshift.cn/api
             export VITE_APP_ENV=staging
           fi
 
@@ -408,11 +408,11 @@ jobs:
           echo "时间:     $(date '+%Y-%m-%d %H:%M:%S')"
 
           if [ "${{ needs.pre-check.outputs.environment }}" == "production" ]; then
-            echo "访问地址: https://pdfshift.com"
-            echo "管理后台: https://pdfshift.com/admin"
+            echo "访问地址: https://coreshift.cn"
+            echo "管理后台: https://coreshift.cn/admin"
           else
-            echo "访问地址: https://test.pdfshift.com"
-            echo "管理后台: https://test.pdfshift.com/admin"
+            echo "访问地址: https://test.coreshift.cn"
+            echo "管理后台: https://test.coreshift.cn/admin"
           fi
           echo "========================================="
 

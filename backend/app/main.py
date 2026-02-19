@@ -43,7 +43,7 @@ app = FastAPI(
 # CORS 中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.APP_DEBUG else ["https://pdfshift.com", "https://test.pdfshift.com"],
+    allow_origins=["*"] if settings.APP_DEBUG else ["https://coreshift.cn", "https://test.coreshift.cn"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
@@ -53,7 +53,7 @@ app.add_middleware(
 if not settings.APP_DEBUG:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["pdfshift.com", "*.pdfshift.com", "localhost", "127.0.0.1"],
+        allowed_hosts=["coreshift.cn", "*.coreshift.cn", "localhost", "127.0.0.1"],
     )
 
 

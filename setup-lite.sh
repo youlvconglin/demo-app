@@ -108,7 +108,7 @@ REDIS_URL=redis://localhost:6379/0
 # OSS 配置 (阿里云对象存储)
 OSS_ACCESS_KEY=LTAI5txxxxxxxxxxxxxx
 OSS_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-OSS_BUCKET=pdfshift-storage
+OSS_BUCKET=coreshift-storage
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 # JWT 密钥 (至少 32 个字符)

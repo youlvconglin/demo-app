@@ -11,8 +11,8 @@
 
 | 环境 | 用途 | 分支 | 域名示例 | 服务器 |
 |------|------|------|---------|--------|
-| **测试环境 (Staging)** | 功能测试、集成测试 | `develop` | test.pdfshift.com | 可与生产共用或独立 |
-| **生产环境 (Production)** | 正式对外服务 | `main` | pdfshift.com | 独立 ECS |
+| **测试环境 (Staging)** | 功能测试、集成测试 | `develop` | test.coreshift.cn | 可与生产共用或独立 |
+| **生产环境 (Production)** | 正式对外服务 | `main` | coreshift.cn | 独立 ECS |
 
 ### 1.2 部署策略
 
@@ -22,8 +22,8 @@
 │           ECS (2C4G)                    │
 │  ┌──────────────────────────────────┐  │
 │  │ Nginx                            │  │
-│  │ - test.pdfshift.com → :8001      │  │
-│  │ - pdfshift.com      → :8000      │  │
+│  │ - test.coreshift.cn → :8001      │  │
+│  │ - coreshift.cn      → :8000      │  │
 │  └──────────────────────────────────┘  │
 │                                         │
 │  ┌────────────┐  ┌─────────────────┐  │
@@ -41,7 +41,7 @@
 ┌─────────────────┐       ┌──────────────────┐
 │  测试服务器      │       │   生产服务器      │
 │  (1C2G 轻量)    │       │   (2C4G 标准)    │
-│  test.pdfshift  │       │   pdfshift.com   │
+│  test.coreshift │       │   coreshift.cn   │
 └─────────────────┘       └──────────────────┘
 ```
 
@@ -92,7 +92,7 @@ DATABASE_URL=sqlite:////opt/pdfshift/staging/data/staging.db
 REDIS_URL=redis://localhost:6379/1
 
 # OSS (使用测试 Bucket)
-OSS_BUCKET=pdfshift-staging
+OSS_BUCKET=coreshift-staging
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 # JWT (测试密钥)
@@ -124,7 +124,7 @@ DATABASE_URL=sqlite:////opt/pdfshift/production/data/production.db
 REDIS_URL=redis://localhost:6379/0
 
 # OSS (生产 Bucket)
-OSS_BUCKET=pdfshift-production
+OSS_BUCKET=coreshift-production
 OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 # JWT (强密钥)
@@ -258,7 +258,7 @@ WantedBy=multi-user.target
 # ========== 测试环境 ==========
 server {
     listen 80;
-    server_name test.pdfshift.com;
+    server_name test.coreshift.cn;
 
     client_max_body_size 500M;
 
@@ -301,7 +301,7 @@ server {
 # ========== 生产环境 ==========
 server {
     listen 80;
-    server_name pdfshift.com www.pdfshift.com;
+    server_name coreshift.cn www.coreshift.cn;
 
     client_max_body_size 500M;
 
