@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     client_id TEXT NOT NULL,
     file_name TEXT,
     file_size INTEGER,
-    oss_key_source TEXT,
-    oss_key_result TEXT,
+    file_key_source TEXT,  -- 源文件相对路径
+    file_key_result TEXT,  -- 结果文件相对路径
     task_type TEXT CHECK(task_type IN ('pdf2word', 'pdf2excel', 'pdf2ppt', 'merge', 'split')),
     status TEXT CHECK(status IN ('pending', 'processing', 'completed', 'failed', 'expired')) DEFAULT 'pending',
     is_paid INTEGER DEFAULT 0,

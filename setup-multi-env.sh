@@ -30,10 +30,12 @@ echo -e "${GREEN}2. 创建目录结构...${NC}"
 
 # 测试环境
 mkdir -p /opt/pdfshift/staging/{backend,frontend/dist,data,logs,backups,tmp}
+mkdir -p /opt/pdfshift/staging/storage/{uploads,results}
 mkdir -p /opt/pdfshift/staging/venv
 
 # 生产环境
 mkdir -p /opt/pdfshift/production/{backend,frontend/dist,data,logs,backups,tmp}
+mkdir -p /opt/pdfshift/production/storage/{uploads,results}
 mkdir -p /opt/pdfshift/production/venv
 
 # 共享目录
@@ -66,10 +68,13 @@ APP_DEBUG=true
 DATABASE_URL=sqlite:////opt/pdfshift/staging/data/staging.db
 REDIS_URL=redis://localhost:6379/1
 
-OSS_ACCESS_KEY=your_access_key
-OSS_SECRET_KEY=your_secret_key
-OSS_BUCKET=coreshift-staging
-OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+STORAGE_TYPE=local
+STORAGE_BASE_PATH=/opt/pdfshift/staging/storage
+
+# OSS_ACCESS_KEY=your_access_key
+# OSS_SECRET_KEY=your_secret_key
+# OSS_BUCKET=coreshift-staging
+# OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 JWT_SECRET=staging_test_secret_key_change_me
 
@@ -88,10 +93,13 @@ APP_DEBUG=false
 DATABASE_URL=sqlite:////opt/pdfshift/production/data/production.db
 REDIS_URL=redis://localhost:6379/0
 
-OSS_ACCESS_KEY=your_access_key
-OSS_SECRET_KEY=your_secret_key
-OSS_BUCKET=coreshift-production
-OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+STORAGE_TYPE=local
+STORAGE_BASE_PATH=/opt/pdfshift/production/storage
+
+# OSS_ACCESS_KEY=your_access_key
+# OSS_SECRET_KEY=your_secret_key
+# OSS_BUCKET=coreshift-production
+# OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
 
 JWT_SECRET=production_super_strong_secret_min_32_chars
 

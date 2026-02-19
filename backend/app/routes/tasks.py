@@ -20,7 +20,7 @@ router = APIRouter()
 class TaskCreate(BaseModel):
     """创建任务请求"""
 
-    oss_key: str
+    file_key: str  # 文件相对路径
     task_type: str  # pdf2word, pdf2excel, pdf2ppt, merge, split
     file_name: str
     file_size: int
@@ -48,7 +48,7 @@ async def create_task(task_data: TaskCreate, db: Session = Depends(get_db)):
     """
     创建转换任务
 
-    - **oss_key**: OSS 文件路径
+    - **file_key**: 文件相对路径
     - **task_type**: 任务类型 (pdf2word, pdf2excel, pdf2ppt, merge, split)
     - **file_name**: 文件名
     - **file_size**: 文件大小（字节）
@@ -81,7 +81,7 @@ async def create_task(task_data: TaskCreate, db: Session = Depends(get_db)):
         client_id=task_data.client_id,
         file_name=task_data.file_name,
         file_size=task_data.file_size,
-        oss_key_source=task_data.oss_key,
+        file_key_source=task_data.file_key,
         task_type=task_data.task_type,
         status="pending",
         is_paid=is_paid,
@@ -95,7 +95,7 @@ async def create_task(task_data: TaskCreate, db: Session = Depends(get_db)):
     db.refresh(task)
 
     # 提交到 Celery 队列
-    convert_pdf_task.delay(task_id, task_data.oss_key, task_data.task_type)
+    convert_pdf_task.delay(task_id, task_data.file_key, task_data.task_type)
 
     return task
 
@@ -130,8 +130,7 @@ async def get_task(task_id: str, db: Session = Depends(get_db)):
     )
 
     # 如果任务完成，生成下载链接
-    if task.status == "completed" and task.oss_key_result:
-        # TODO: 生成带签名的 OSS 下载链接
+    if task.status == "completed" and task.file_key_result:
         response.download_url = f"/api/v1/download/{task.task_id}"
 
     return response

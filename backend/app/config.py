@@ -25,10 +25,14 @@ class Settings(BaseSettings):
     # Redis 配置
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # OSS 配置
-    OSS_ACCESS_KEY: str
-    OSS_SECRET_KEY: str
-    OSS_BUCKET: str
+    # 文件存储配置
+    STORAGE_TYPE: str = "local"  # local 或 oss
+    STORAGE_BASE_PATH: str = "/opt/pdfshift/storage"  # 本地存储根目录
+
+    # OSS 配置（可选，仅当 STORAGE_TYPE=oss 时使用）
+    OSS_ACCESS_KEY: Optional[str] = None
+    OSS_SECRET_KEY: Optional[str] = None
+    OSS_BUCKET: Optional[str] = None
     OSS_ENDPOINT: str = "oss-cn-hangzhou.aliyuncs.com"
 
     # JWT 配置

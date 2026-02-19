@@ -2,11 +2,11 @@
 Celery 任务
 """
 from celery import Task
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import tempfile
 import structlog
-import oss2
+import shutil
 
 from app.celery_app import celery_app
 from app.database import SessionLocal
@@ -33,13 +33,13 @@ class DatabaseTask(Task):
 
 
 @celery_app.task(bind=True, base=DatabaseTask, name="app.tasks.convert_pdf_task")
-def convert_pdf_task(self, task_id: str, oss_key: str, task_type: str):
+def convert_pdf_task(self, task_id: str, file_key: str, task_type: str):
     """
     PDF 转换任务
 
     Args:
         task_id: 任务 ID
-        oss_key: OSS 文件路径
+        file_key: 本地文件相对路径
         task_type: 转换类型 (pdf2word, pdf2excel, pdf2ppt)
     """
     logger.info("Starting PDF conversion", task_id=task_id, task_type=task_type)
@@ -54,34 +54,41 @@ def convert_pdf_task(self, task_id: str, oss_key: str, task_type: str):
     self.db.commit()
 
     try:
-        # 初始化 OSS 客户端
-        auth = oss2.Auth(settings.OSS_ACCESS_KEY, settings.OSS_SECRET_KEY)
-        bucket = oss2.Bucket(auth, f"https://{settings.OSS_ENDPOINT}", settings.OSS_BUCKET)
+        # 获取输入文件路径
+        input_path = os.path.join(settings.STORAGE_BASE_PATH, file_key)
 
-        # 下载 PDF 文件到临时目录
-        with tempfile.TemporaryDirectory() as temp_dir:
-            input_path = os.path.join(temp_dir, "input.pdf")
-            output_path = os.path.join(temp_dir, f"output.{get_output_extension(task_type)}")
+        if not os.path.exists(input_path):
+            raise FileNotFoundError(f"Source file not found: {input_path}")
 
-            logger.info("Downloading PDF from OSS", oss_key=oss_key)
-            bucket.get_object_to_file(oss_key, input_path)
+        # 创建结果文件目录
+        now = datetime.now()
+        result_dir = os.path.join(
+            settings.STORAGE_BASE_PATH,
+            "results",
+            str(now.year),
+            f"{now.month:02d}",
+            f"{now.day:02d}"
+        )
+        os.makedirs(result_dir, exist_ok=True)
 
-            # 执行转换
-            logger.info("Converting PDF", task_type=task_type)
-            convert_pdf(input_path, output_path, task_type)
+        # 生成输出文件路径
+        output_filename = f"{task_id}.{get_output_extension(task_type)}"
+        output_path = os.path.join(result_dir, output_filename)
 
-            # 上传结果到 OSS
-            result_key = f"results/{task_id}.{get_output_extension(task_type)}"
-            logger.info("Uploading result to OSS", result_key=result_key)
-            bucket.put_object_from_file(result_key, output_path)
+        # 执行转换
+        logger.info("Converting PDF", task_type=task_type, input=input_path)
+        convert_pdf(input_path, output_path, task_type)
 
-            # 更新任务状态
-            task.status = "completed"
-            task.oss_key_result = result_key
-            task.completed_at = datetime.now()
-            self.db.commit()
+        # 计算相对路径
+        result_key = os.path.relpath(output_path, settings.STORAGE_BASE_PATH)
 
-            logger.info("PDF conversion completed", task_id=task_id)
+        # 更新任务状态
+        task.status = "completed"
+        task.file_key_result = result_key.replace("\\", "/")  # 统一使用斜杠
+        task.completed_at = datetime.now()
+        self.db.commit()
+
+        logger.info("PDF conversion completed", task_id=task_id, output=output_path)
 
     except Exception as e:
         logger.error("PDF conversion failed", task_id=task_id, error=str(e))
@@ -192,21 +199,23 @@ def cleanup_expired_files():
 
         logger.info("Found expired tasks", count=len(expired_tasks))
 
-        # 初始化 OSS 客户端
-        auth = oss2.Auth(settings.OSS_ACCESS_KEY, settings.OSS_SECRET_KEY)
-        bucket = oss2.Bucket(auth, f"https://{settings.OSS_ENDPOINT}", settings.OSS_BUCKET)
-
         deleted_count = 0
 
         for task in expired_tasks:
             try:
                 # 删除源文件
-                if task.oss_key_source:
-                    bucket.delete_object(task.oss_key_source)
+                if task.file_key_source:
+                    source_path = os.path.join(settings.STORAGE_BASE_PATH, task.file_key_source)
+                    if os.path.exists(source_path):
+                        os.remove(source_path)
+                        logger.debug("Deleted source file", path=source_path)
 
                 # 删除结果文件
-                if task.oss_key_result:
-                    bucket.delete_object(task.oss_key_result)
+                if task.file_key_result:
+                    result_path = os.path.join(settings.STORAGE_BASE_PATH, task.file_key_result)
+                    if os.path.exists(result_path):
+                        os.remove(result_path)
+                        logger.debug("Deleted result file", path=result_path)
 
                 # 更新任务状态
                 task.status = "expired"

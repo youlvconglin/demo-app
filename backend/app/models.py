@@ -15,8 +15,8 @@ class Task(Base):
     client_id = Column(String(64), nullable=False, index=True)
     file_name = Column(String(255))
     file_size = Column(Integer)
-    oss_key_source = Column(String(255))
-    oss_key_result = Column(String(255))
+    file_key_source = Column(String(255))  # 源文件相对路径
+    file_key_result = Column(String(255))  # 结果文件相对路径
     task_type = Column(String(50))  # pdf2word, pdf2excel, pdf2ppt, merge, split
     status = Column(String(50), default="pending", index=True)  # pending, processing, completed, failed, expired
     is_paid = Column(Boolean, default=False)

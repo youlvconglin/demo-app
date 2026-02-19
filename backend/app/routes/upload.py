@@ -1,49 +1,46 @@
 """
 文件上传相关 API
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import oss2
-from datetime import datetime, timedelta
-import base64
-import json
-import hmac
-import hashlib
+from datetime import datetime
+import os
+import uuid
+import shutil
 
 from app.config import settings
 
 router = APIRouter()
 
 
-class UploadPolicyRequest(BaseModel):
-    """上传凭证请求"""
+class UploadResponse(BaseModel):
+    """上传响应"""
 
+    file_key: str
     filename: str
-    size: int  # 文件大小（字节）
+    size: int
+    upload_time: str
 
 
-class UploadPolicyResponse(BaseModel):
-    """上传凭证响应"""
-
-    access_key_id: str
-    policy: str
-    signature: str
-    dir: str
-    host: str
-    expire: int
-    callback: str = ""
-
-
-@router.post("/upload/policy", response_model=UploadPolicyResponse)
-async def get_upload_policy(request: UploadPolicyRequest):
+@router.post("/upload", response_model=UploadResponse)
+async def upload_file(file: UploadFile = File(...)):
     """
-    获取 OSS 上传凭证
+    上传文件到本地存储
 
-    客户端使用此凭证直接上传文件到 OSS
+    Args:
+        file: 上传的文件
+
+    Returns:
+        文件信息
     """
 
     # 检查文件大小
-    file_size_mb = request.size / (1024 * 1024)
+    file.file.seek(0, 2)  # 移动到文件末尾
+    file_size = file.file.tell()
+    file.file.seek(0)  # 重置到开头
+
+    file_size_mb = file_size / (1024 * 1024)
 
     if file_size_mb > settings.MAX_FILE_SIZE_MB:
         raise HTTPException(
@@ -51,61 +48,86 @@ async def get_upload_policy(request: UploadPolicyRequest):
             detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE_MB}MB",
         )
 
-    # 生成上传路径
+    # 生成文件存储路径
     now = datetime.now()
-    upload_dir = f"uploads/{now.year}/{now.month:02d}/{now.day:02d}/"
+    upload_dir = os.path.join(
+        settings.STORAGE_BASE_PATH,
+        "uploads",
+        str(now.year),
+        f"{now.month:02d}",
+        f"{now.day:02d}"
+    )
 
-    # 设置过期时间（30 分钟）
-    expire_time = int((datetime.now() + timedelta(minutes=30)).timestamp())
+    # 确保目录存在
+    os.makedirs(upload_dir, exist_ok=True)
 
-    # 构建 Policy
-    policy_dict = {
-        "expiration": datetime.utcfromtimestamp(expire_time).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "conditions": [
-            {"bucket": settings.OSS_BUCKET},
-            ["starts-with", "$key", upload_dir],
-            ["content-length-range", 0, settings.MAX_FILE_SIZE_MB * 1024 * 1024],
-        ],
-    }
+    # 生成唯一文件名
+    file_ext = os.path.splitext(file.filename)[1]
+    file_key = f"{uuid.uuid4().hex}{file_ext}"
+    file_path = os.path.join(upload_dir, file_key)
 
-    policy_encoded = base64.b64encode(json.dumps(policy_dict).encode("utf-8")).decode("utf-8")
+    # 保存文件
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"文件保存失败: {str(e)}")
 
-    # 计算签名
-    signature = base64.b64encode(
-        hmac.new(
-            settings.OSS_SECRET_KEY.encode("utf-8"), policy_encoded.encode("utf-8"), hashlib.sha1
-        ).digest()
-    ).decode("utf-8")
+    # 返回相对路径作为 file_key
+    relative_path = os.path.relpath(file_path, settings.STORAGE_BASE_PATH)
 
-    # OSS 访问地址
-    host = f"https://{settings.OSS_BUCKET}.{settings.OSS_ENDPOINT}"
-
-    return UploadPolicyResponse(
-        access_key_id=settings.OSS_ACCESS_KEY,
-        policy=policy_encoded,
-        signature=signature,
-        dir=upload_dir,
-        host=host,
-        expire=expire_time,
+    return UploadResponse(
+        file_key=relative_path.replace("\\", "/"),  # 统一使用斜杠
+        filename=file.filename,
+        size=file_size,
+        upload_time=now.isoformat()
     )
 
 
 @router.get("/download/{task_id}")
 async def download_file(task_id: str):
     """
-    生成下载链接
+    下载转换后的文件
 
-    返回带签名的临时下载 URL
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        文件下载响应
     """
-    # TODO: 从数据库查询任务，获取 OSS key
-    # TODO: 生成带签名的下载 URL
+    from app.database import SessionLocal
+    from app.models import Task
 
-    # 临时实现
-    auth = oss2.Auth(settings.OSS_ACCESS_KEY, settings.OSS_SECRET_KEY)
-    bucket = oss2.Bucket(auth, f"https://{settings.OSS_ENDPOINT}", settings.OSS_BUCKET)
+    db = SessionLocal()
 
-    # 生成 1 小时有效的下载链接
-    oss_key = f"results/{task_id}.docx"  # 示例
-    url = bucket.sign_url("GET", oss_key, 3600)
+    try:
+        # 查询任务
+        task = db.query(Task).filter(Task.task_id == task_id).first()
 
-    return {"download_url": url}
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        if task.status != "completed":
+            raise HTTPException(status_code=400, detail="任务未完成")
+
+        # 检查文件是否过期
+        if task.expire_at and task.expire_at < datetime.now():
+            raise HTTPException(status_code=410, detail="文件已过期")
+
+        # 构建文件路径
+        file_path = os.path.join(settings.STORAGE_BASE_PATH, task.file_key_result)
+
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="文件不存在")
+
+        # 获取文件名
+        filename = f"{task_id}.{task.file_key_result.split('.')[-1]}"
+
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type="application/octet-stream"
+        )
+
+    finally:
+        db.close()
