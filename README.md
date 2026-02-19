@@ -1,16 +1,33 @@
-# React + Vite
+# CoreShift - 在线 PDF 转换工具
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+免费、快速、安全的在线 PDF 转换服务
 
-Currently, two official plugins are available:
+## 功能特性
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 🔄 **PDF 转 Word** - 保持原始格式和布局
+- 📊 **PDF 转 Excel** - 智能提取表格数据
+- 📽️ **PDF 转 PPT** - 每页转换为独立幻灯片
+- 🚀 **快速转换** - 秒级处理速度
+- 🔒 **安全可靠** - 文件自动清理，保护隐私
+- 💰 **免费使用** - 50MB 以内文件完全免费
 
-## React Compiler
+## 技术架构
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **后端**: FastAPI + Celery + SQLite
+- **前端**: React 18 + Ant Design
+- **存储**: 本地文件系统（零 OSS 成本）
+- **部署**: 单服务器多环境架构
 
-## Expanding the ESLint configuration
+## 环境说明
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **测试环境**: test.coreshift.cn
+- **生产环境**: coreshift.cn
+
+## 成本优化
+
+通过使用本地存储替代 OSS，月成本从 ¥107-137 降至 **¥87**，节省约 20-36%。
+
+---
+
+**当前版本**: MVP 1.0  
+**最后更新**: 2026-02-20
