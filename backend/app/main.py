@@ -4,9 +4,11 @@ PDFShift FastAPI 主应用
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import structlog
 from contextlib import asynccontextmanager
+import os
 
 from app.config import settings
 from app.database import init_db
@@ -77,6 +79,11 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+# 挂载静态文件目录
+static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 # 注册路由
 app.include_router(tasks.router, prefix="/api/v1", tags=["tasks"])
 app.include_router(upload.router, prefix="/api/v1", tags=["upload"])
@@ -104,6 +111,15 @@ async def root():
         "version": settings.APP_VERSION,
         "message": "PDFShift API is running",
     }
+
+
+@app.get("/admin/")
+async def admin_panel():
+    """管理后台页面"""
+    static_file = os.path.join(os.path.dirname(__file__), "..", "static", "admin.html")
+    if os.path.exists(static_file):
+        return FileResponse(static_file)
+    return {"error": "Admin panel not found"}
 
 
 if __name__ == "__main__":
