@@ -40,6 +40,3 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=0),
     },
 }
-
-# 导入任务（放在最后避免循环导入）
-from app.tasks import convert_pdf_task, cleanup_expired_files, generate_hourly_stats

@@ -10,7 +10,7 @@ import uuid
 from app.database import get_db
 from app.models import Task
 from app.config import settings
-from app.celery_app import convert_pdf_task
+from app.tasks import convert_pdf_task
 from pydantic import BaseModel
 
 router = APIRouter()
