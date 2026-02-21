@@ -1,8 +1,31 @@
 # PDFShift 项目状态报告
 
-**日期**: 2026-02-20
+**日期**: 2026-02-21
 **版本**: MVP 1.0
 **状态**: 🎉 已成功部署上线！
+
+---
+
+## 🔧 最新更新（2026-02-21）
+
+### ✅ 修复的问题
+
+1. **循环导入错误** - 修复了 `app.celery_app` 和 `app.tasks` 之间的循环导入
+   - 删除 `celery_app.py` 中不必要的 task 导入
+   - 修复 `routes/tasks.py` 的导入路径：`from app.tasks import convert_pdf_task`
+
+2. **Celery Worker 配置** - 修复 systemd 服务配置
+   - 正确的模块路径：`celery -A app.celery_app:celery_app worker`
+
+3. **前端 API 路径** - 修复前端调用错误的 API 路径
+   - 默认使用 `/api/v1` 作为 API base URL
+
+4. **多环境同步** - 确保测试和生产环境配置一致
+
+### 🐛 已知问题
+
+- PDF 转换功能需要实际测试验证
+- 需要测试大文件上传和转换
 
 ---
 
