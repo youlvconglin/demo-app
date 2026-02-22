@@ -4,7 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
@@ -109,9 +109,9 @@ async def get_daily_stats(
         db.query(
             func.date(Task.created_at).label("date"),
             func.count(Task.task_id).label("total_tasks"),
-            func.sum(func.case((Task.status == "completed", 1), else_=0)).label("completed_tasks"),
-            func.sum(func.case((Task.status == "failed", 1), else_=0)).label("failed_tasks"),
-            func.sum(func.case((Task.is_paid == True, 1), else_=0)).label("paid_tasks"),
+            func.sum(case((Task.status == "completed", 1), else_=0)).label("completed_tasks"),
+            func.sum(case((Task.status == "failed", 1), else_=0)).label("failed_tasks"),
+            func.sum(case((Task.is_paid == True, 1), else_=0)).label("paid_tasks"),
         )
         .filter(Task.created_at >= start_date)
         .group_by(func.date(Task.created_at))
