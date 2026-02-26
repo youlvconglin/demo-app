@@ -1,5 +1,5 @@
 # robots.txt for PDFShift
-# https://coreshift.cn/robots.txt
+# https://www.coreshift.cn/robots.txt
 
 # 允许所有搜索引擎爬取
 User-agent: *
@@ -17,7 +17,7 @@ Disallow: /temp/
 Disallow: /api/v1/download/
 
 # Sitemap 位置
-Sitemap: https://coreshift.cn/sitemap.xml
+Sitemap: https://www.coreshift.cn/sitemap.xml
 
 # 针对特定搜索引擎的优化
 # 百度爬虫
