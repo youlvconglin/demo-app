@@ -176,7 +176,7 @@ jobs:
 
       # ========== 6. 上传到 ECS ==========
       - name: Upload to ECS
-        uses: appleboy/scp-action@v0.1.8
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.ECS_HOST }}
           username: ${{ secrets.ECS_USERNAME }}
@@ -185,11 +185,10 @@ jobs:
           source: "deploy.tar.gz"
           target: "/tmp"
           timeout: 120s
-          command_timeout: 10m
 
       # ========== 7. 部署到服务器 ==========
       - name: Deploy to ${{ needs.pre-check.outputs.environment }}
-        uses: appleboy/ssh-action@v1.3.0
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.ECS_HOST }}
           username: ${{ secrets.ECS_USERNAME }}
@@ -429,7 +428,7 @@ jobs:
       # ========== 9. 失败时回滚（可选）==========
       - name: Rollback on failure
         if: failure() && needs.pre-check.outputs.environment == 'production'
-        uses: appleboy/ssh-action@v1.3.0
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.ECS_HOST }}
           username: ${{ secrets.ECS_USERNAME }}
