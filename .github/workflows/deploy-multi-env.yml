@@ -3,7 +3,8 @@ name: Deploy PDFShift (Multi Environment)
 on:
   push:
     branches:
-      - develop      # 仅测试环境自动部署
+      - master       # master 分支自动部署到 staging 环境
+      - develop      # develop 分支也自动部署到 staging 环境
   workflow_dispatch:
     inputs:
       environment:
@@ -38,9 +39,9 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             ENV="${{ github.event.inputs.environment }}"
             echo "🎯 手动触发部署: $ENV"
-          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ] || [ "${{ github.ref }}" == "refs/heads/master" ]; then
             ENV="staging"
-            echo "🚀 自动部署到测试环境"
+            echo "🚀 自动部署到测试环境 (分支: ${{ github.ref_name }})"
           else
             echo "❌ 未知分支或触发方式"
             exit 1
