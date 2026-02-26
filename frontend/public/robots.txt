@@ -1,0 +1,42 @@
+# robots.txt for PDFShift
+# https://coreshift.cn/robots.txt
+
+# 允许所有搜索引擎爬取
+User-agent: *
+Allow: /
+
+# 禁止爬取API接口
+Disallow: /api/
+Disallow: /admin/
+
+# 禁止爬取临时文件
+Disallow: /tmp/
+Disallow: /temp/
+
+# 禁止爬取下载链接（避免消耗服务器资源）
+Disallow: /api/v1/download/
+
+# Sitemap 位置
+Sitemap: https://coreshift.cn/sitemap.xml
+
+# 针对特定搜索引擎的优化
+# 百度爬虫
+User-agent: Baiduspider
+Allow: /
+Crawl-delay: 1
+
+# 360搜索爬虫
+User-agent: 360Spider
+Allow: /
+
+# 搜狗爬虫
+User-agent: Sogou web spider
+Allow: /
+
+# Google爬虫
+User-agent: Googlebot
+Allow: /
+
+# Bing爬虫
+User-agent: Bingbot
+Allow: /
