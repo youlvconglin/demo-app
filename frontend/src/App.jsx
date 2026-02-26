@@ -1,6 +1,14 @@
 import { useState } from 'react'
-import { Upload, Button, message, Card, Progress, Space, Typography } from 'antd'
-import { InboxOutlined, FileTextOutlined } from '@ant-design/icons'
+import { Upload, Button, message, Card, Progress, Space, Typography, Row, Col } from 'antd'
+import {
+  InboxOutlined,
+  FileTextOutlined,
+  FileExcelOutlined,
+  FilePptOutlined,
+  MergeCellsOutlined,
+  ScissorOutlined,
+  ArrowLeftOutlined
+} from '@ant-design/icons'
 import axios from 'axios'
 import './App.css'
 
@@ -9,8 +17,55 @@ const { Title, Text } = Typography
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
+// 功能列表配置
+const FEATURES = [
+  {
+    id: 'pdf2word',
+    title: 'PDF 转 Word',
+    description: '将 PDF 文档转换为可编辑的 Word 文件',
+    icon: <FileTextOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
+    accept: '.pdf',
+    buttonText: '开始转换'
+  },
+  {
+    id: 'pdf2excel',
+    title: 'PDF 转 Excel',
+    description: '从 PDF 中提取表格数据到 Excel',
+    icon: <FileExcelOutlined style={{ fontSize: 48, color: '#52c41a' }} />,
+    accept: '.pdf',
+    buttonText: '开始转换'
+  },
+  {
+    id: 'pdf2ppt',
+    title: 'PDF 转 PPT',
+    description: '将 PDF 转换为 PowerPoint 演示文稿',
+    icon: <FilePptOutlined style={{ fontSize: 48, color: '#fa8c16' }} />,
+    accept: '.pdf',
+    buttonText: '开始转换'
+  },
+  {
+    id: 'merge',
+    title: 'PDF 合并',
+    description: '将多个 PDF 文件合并为一个',
+    icon: <MergeCellsOutlined style={{ fontSize: 48, color: '#722ed1' }} />,
+    accept: '.pdf',
+    buttonText: '开始合并',
+    multiple: true
+  },
+  {
+    id: 'split',
+    title: 'PDF 拆分',
+    description: '将一个 PDF 文件拆分为多个',
+    icon: <ScissorOutlined style={{ fontSize: 48, color: '#eb2f96' }} />,
+    accept: '.pdf',
+    buttonText: '开始拆分'
+  }
+]
+
 function App() {
+  const [currentFeature, setCurrentFeature] = useState(null)
   const [file, setFile] = useState(null)
+  const [files, setFiles] = useState([])
   const [converting, setConverting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState(null)
@@ -101,8 +156,8 @@ function App() {
 
   const uploadProps = {
     name: 'file',
-    multiple: false,
-    accept: '.pdf',
+    multiple: currentFeature?.multiple || false,
+    accept: currentFeature?.accept || '.pdf',
     beforeUpload: (file) => {
       if (file.type !== 'application/pdf') {
         message.error('只支持 PDF 文件')
@@ -114,41 +169,113 @@ function App() {
         return Upload.LIST_IGNORE
       }
 
-      setFile(file)
-      message.success(`已选择: ${file.name}`)
+      if (currentFeature?.multiple) {
+        setFiles(prev => [...prev, file])
+        message.success(`已添加: ${file.name}`)
+      } else {
+        setFile(file)
+        message.success(`已选择: ${file.name}`)
+      }
       return false
     }
   }
 
-  return (
-    <div className="app">
-      <div className="container">
-        <Title level={1}>PDFShift</Title>
-        <Text type="secondary">在线 PDF 转换工具 - 免费、快速、安全</Text>
+  // 返回首页
+  const goBack = () => {
+    setCurrentFeature(null)
+    setFile(null)
+    setFiles([])
+    setConverting(false)
+    setProgress(0)
+    setResult(null)
+  }
 
-        <Card style={{ marginTop: 32 }}>
+  // 选择功能
+  const selectFeature = (feature) => {
+    setCurrentFeature(feature)
+    setFile(null)
+    setFiles([])
+    setResult(null)
+  }
+
+  // 渲染功能选择页面
+  const renderFeatureSelection = () => (
+    <div style={{ marginTop: 32 }}>
+      <Title level={2} style={{ textAlign: 'center', marginBottom: 40 }}>
+        选择您需要的功能
+      </Title>
+      <Row gutter={[24, 24]}>
+        {FEATURES.map(feature => (
+          <Col xs={24} sm={12} md={8} key={feature.id}>
+            <Card
+              hoverable
+              onClick={() => selectFeature(feature)}
+              style={{ textAlign: 'center', height: '100%' }}
+            >
+              <div style={{ padding: '20px 0' }}>
+                {feature.icon}
+                <Title level={4} style={{ marginTop: 16, marginBottom: 8 }}>
+                  {feature.title}
+                </Title>
+                <Text type="secondary">{feature.description}</Text>
+              </div>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+    </div>
+  )
+
+  // 渲染转换页面
+  const renderConversionPage = () => (
+    <div style={{ marginTop: 32 }}>
+      <Button
+        icon={<ArrowLeftOutlined />}
+        onClick={goBack}
+        style={{ marginBottom: 16 }}
+      >
+        返回首页
+      </Button>
+
+      <Card>
+        <Title level={3}>{currentFeature.title}</Title>
+        <Text type="secondary">{currentFeature.description}</Text>
+
+        <div style={{ marginTop: 24 }}>
           <Dragger {...uploadProps} disabled={converting}>
             <p className="ant-upload-drag-icon">
               <InboxOutlined />
             </p>
-            <p className="ant-upload-text">点击或拖拽 PDF 文件到此区域</p>
+            <p className="ant-upload-text">
+              {currentFeature.multiple ? '点击或拖拽 PDF 文件到此区域（可选择多个）' : '点击或拖拽 PDF 文件到此区域'}
+            </p>
             <p className="ant-upload-hint">
-              支持单个文件上传，最大 500MB
+              支持{currentFeature.multiple ? '多个' : '单个'}文件上传，每个文件最大 500MB
             </p>
           </Dragger>
 
-          {file && !converting && !result && (
-            <Space style={{ marginTop: 24 }} wrap>
-              <Button type="primary" icon={<FileTextOutlined />} onClick={() => handleUpload('pdf2word')}>
-                转换为 Word
+          {currentFeature.multiple && files.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Text strong>已选择 {files.length} 个文件：</Text>
+              <ul>
+                {files.map((f, idx) => (
+                  <li key={idx}>{f.name}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {((file && !currentFeature.multiple) || (files.length > 0 && currentFeature.multiple)) && !converting && !result && (
+            <div style={{ marginTop: 24, textAlign: 'center' }}>
+              <Button
+                type="primary"
+                size="large"
+                icon={currentFeature.icon}
+                onClick={() => handleUpload(currentFeature.id)}
+              >
+                {currentFeature.buttonText}
               </Button>
-              <Button icon={<FileTextOutlined />} onClick={() => handleUpload('pdf2excel')}>
-                转换为 Excel
-              </Button>
-              <Button icon={<FileTextOutlined />} onClick={() => handleUpload('pdf2ppt')}>
-                转换为 PPT
-              </Button>
-            </Space>
+            </div>
           )}
 
           {converting && (
@@ -160,7 +287,7 @@ function App() {
 
           {result && (
             <Card style={{ marginTop: 24 }} type="inner">
-              <Title level={4}>转换完成！</Title>
+              <Title level={4}>处理完成！</Title>
               <Text>文件名: {result.file_name}</Text>
               <br />
               <Button
@@ -174,9 +301,27 @@ function App() {
               <Text type="secondary" style={{ marginLeft: 16 }}>
                 文件将在 1 小时后自动删除
               </Text>
+              <br />
+              <Button
+                style={{ marginTop: 16 }}
+                onClick={goBack}
+              >
+                继续处理其他文件
+              </Button>
             </Card>
           )}
-        </Card>
+        </div>
+      </Card>
+    </div>
+  )
+
+  return (
+    <div className="app">
+      <div className="container">
+        <Title level={1}>PDFShift</Title>
+        <Text type="secondary">在线 PDF 转换工具 - 免费、快速、安全</Text>
+
+        {!currentFeature ? renderFeatureSelection() : renderConversionPage()}
 
         <div className="footer">
           <Text type="secondary">
